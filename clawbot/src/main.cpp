@@ -38,7 +38,6 @@ motor55 MC55_11 = motor55(PORT11, false);
 sonar RangeFinderA = sonar(Brain.ThreeWirePort.C);
 
 pot Potentiometer = pot(Brain.ThreeWirePort.H);
-line LineTracker = line(Brain.ThreeWirePort.E);
 
 // generating and setting random seed
 void initializeRandomSeed() {
@@ -82,7 +81,6 @@ bool autoMode = false;
 bool arcade = false;
 
 // Begin project code
-
 void controller_L1_Pressed() {
     ArmMotor.spin(forward);
     while (Controller1.ButtonL1.pressing()) {
@@ -137,7 +135,8 @@ void raiseArmPID(double target, vex::directionType direction) {
     double derivative;
 
     while (true) {
-        double currAngle = Potentiometer.angle(degrees);
+        // double currAngle = Potentiometer.angle(degrees);
+        double currAngle = ArmMotor.position(degrees);
         error = target - currAngle;
         derivative = error - prevErr;
 
@@ -155,30 +154,44 @@ void raiseArmPID(double target, vex::directionType direction) {
     ArmMotor.stop();
 }
 
-int main() {
-    // Initializing Robot Configuration. DO NOT REMOVE!
-    vexcodeInit();
+void preAutonomous(void) {
+    // actions to do when the program starts
+    Brain.Screen.clearScreen();
+    Brain.Screen.print("pre auton code");
+    wait(1, seconds);
+}
 
-    // Create Controller callback events
-    Controller1.ButtonL1.pressed(controller_L1_Pressed);
-    Controller1.ButtonL2.pressed(controller_L2_Pressed);
-    Controller1.ButtonR1.pressed(controller_R1_Pressed);
-    Controller1.ButtonR2.pressed(controller_R2_Pressed);
-    Controller1.ButtonA.pressed(controller_ButtonA_Pressed);
-    Controller1.ButtonB.pressed(controller_ButtonB_Pressed);
-    wait(15, msec);
+void autonomous(void) {
+    Brain.Screen.clearScreen();
+    Brain.Screen.print("autonomous code");
 
-    // Configure Arm and Claw motor hold settings and velocity
-    ArmMotor.setStopping(hold);
-    ClawMotor.setStopping(hold);
-    ArmMotor.setVelocity(50, percent);
-    ClawMotor.setVelocity(60, percent);
+    LeftMotor.setVelocity(100, percent);
+    RightMotor.setVelocity(100, percent);
 
-    bool triggered = false;
-    bool armRasied = false;
+    LeftMotor.spin(forward);
+    RightMotor.spin(forward);
 
-    // Main Controller loop to set motors to controller axis postiions
+    while (RangeFinderA.distance(inches) > 66) {
+        wait(20, msec);
+    }
+
+    LeftMotor.stop();
+    RightMotor.stop();
+
+    raiseArmPID(479.20, forward);
+}
+
+void userControl(void) {
+    Brain.Screen.clearScreen();
+    // place driver control in this while loop
     while (true) {
+        Controller1.ButtonL1.pressed(controller_L1_Pressed);
+        Controller1.ButtonL2.pressed(controller_L2_Pressed);
+        Controller1.ButtonR1.pressed(controller_R1_Pressed);
+        Controller1.ButtonR2.pressed(controller_R2_Pressed);
+        Controller1.ButtonA.pressed(controller_ButtonA_Pressed);
+        Controller1.ButtonB.pressed(controller_ButtonB_Pressed);
+
         if (arcade) {
             LeftMotor.setVelocity(
                 (Controller1.Axis2.position() + Controller1.Axis4.position()),
@@ -191,61 +204,26 @@ int main() {
             RightMotor.setVelocity(Controller1.Axis2.position(), percent);
         }
 
-        LeftMotor.spin(forward);
-        RightMotor.spin(forward);
-
-        Brain.Screen.clearScreen();
-        Brain.Screen.setCursor(1, 1);
-
-        Brain.Screen.print("Found Object?: %s",
-                           RangeFinderA.foundObject() ? "TRUE" : "FALSE");
-        Brain.Screen.newLine();
-
-        Brain.Screen.print("Distance - Inches: %.2f",
-                           RangeFinderA.distance(inches));
-        Brain.Screen.newLine();
-
-        Brain.Screen.print("Pot Angle: %.2f", Potentiometer.angle(degrees));
-        Brain.Screen.newLine();
-
-        Brain.Screen.print("Arm Motor Angle: %.2f", ArmMotor.position(degrees));
-        Brain.Screen.newLine();
-        wait(5, msec);
-
-        /**
-         * IF: object within three inches of robot's rear, automatically move
-         * forward 3 inches & raise arm
-         *
-         * Max Pot: 57.92
-         * Min: 0.24
-         */
-
-        if (autoMode && RangeFinderA.foundObject() &&
-            RangeFinderA.distance(inches) < 3 && !triggered) {
-            triggered = true;
-            // LeftMotor.setVelocity(100, percent);
-            // RightMotor.setVelocity(100, percent);
-            // LeftMotor.spinFor(forward, 360, degrees, false);
-            // RightMotor.spinFor(forward, 360, degrees, false);
-            // waitUntil(!LeftMotor.isSpinning() && !RightMotor.isSpinning());
-
-            // ArmMotor.setVelocity(100, percent);
-            // ClawMotor.setVelocity(100, percent);
-
-            // while (Potentiometer.angle(degrees) < 46) {
-            //     ArmMotor.spin(forward);
-            //     wait(10, msec);
-            // }
-
-            raiseArmPID(45, forward);
-
-            // ArmMotor.stop();
-        }
-
-        if (autoMode && RangeFinderA.distance(inches) >= 3) {
-            triggered = false;
-        }
-
         wait(20, msec);
+    }
+}
+
+int main() {
+    // Initializing Robot Configuration. DO NOT REMOVE!
+    vexcodeInit();
+    competition Competition;
+
+    Competition.autonomous(autonomous);
+    Competition.drivercontrol(userControl);
+    preAutonomous();
+
+    // Configure Arm and Claw motor hold settings and velocity
+    ArmMotor.setStopping(hold);
+    ClawMotor.setStopping(hold);
+    ArmMotor.setVelocity(68, percent);
+    ClawMotor.setVelocity(70, percent);
+
+    while (true) {
+        wait(100, msec);
     }
 }
