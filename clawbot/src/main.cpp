@@ -38,6 +38,7 @@ motor55 MC55_11 = motor55(PORT11, false);
 sonar RangeFinderA = sonar(Brain.ThreeWirePort.C);
 
 pot Potentiometer = pot(Brain.ThreeWirePort.H);
+line LineTracker = line(Brain.ThreeWirePort.B);
 
 // generating and setting random seed
 void initializeRandomSeed() {
@@ -168,11 +169,9 @@ void autonomous(void) {
     LeftMotor.setVelocity(100, percent);
     RightMotor.setVelocity(100, percent);
 
-    LeftMotor.spin(forward);
-    RightMotor.spin(forward);
-
-    while (RangeFinderA.distance(inches) > 66) {
-        wait(20, msec);
+    while (LineTracker.reflectivity(percent) > 4) {
+        LeftMotor.spin(forward);
+        RightMotor.spin(forward);
     }
 
     LeftMotor.stop();
@@ -224,6 +223,11 @@ int main() {
     ClawMotor.setVelocity(70, percent);
 
     while (true) {
-        wait(100, msec);
+        Brain.Screen.clearScreen();
+        Brain.Screen.setCursor(1,1);
+        Brain.Screen.print("Pot Angle %.2f", Potentiometer.angle(degrees));
+        Brain.Screen.newLine();
+        Brain.Screen.print("Line Tracker: %d", LineTracker.reflectivity(percent));
+        wait(5, msec);
     }
 }
