@@ -140,8 +140,13 @@ void raiseArmPID(double target, vex::directionType direction) {
         double currAngle = ArmMotor.position(degrees);
         error = target - currAngle;
         derivative = error - prevErr;
+        integral += error;
 
         double motorPower = (error * kP) + (integral * kI) + (derivative * kD);
+
+        if (motorPower > 12) motorPower = 12;
+        if (motorPower < -12) motorPower = -12;
+
         ArmMotor.spin(direction, motorPower, voltageUnits::volt);
 
         prevErr = error;
@@ -155,53 +160,123 @@ void raiseArmPID(double target, vex::directionType direction) {
     ArmMotor.stop();
 }
 
+void drivePID(double target, vex::directionType direction) {
+    double kP = 0.5;
+    double kI = 0.01;
+    double kD = 0.1;
+
+    double error;
+    double prevErr = 0;
+    double integral = 0;
+    double derivative;
+
+    // Reset encoders
+    LeftMotor.setPosition(0, degrees);
+    RightMotor.setPosition(0, degrees);
+
+    while (true) {
+
+        double leftPos = LeftMotor.position(degrees);
+        double rightPos = RightMotor.position(degrees);
+
+        double avgPos = (leftPos + rightPos) / 2.0;
+
+        error = target - avgPos;
+
+        // PID calculations
+        integral += error;
+        derivative = error - prevErr;
+
+        double motorPower =
+            (error * kP) +
+            (integral * kI) +
+            (derivative * kD);
+
+        // Clamp motor power
+        if (motorPower > 100) motorPower = 100;
+        if (motorPower < -100) motorPower = -100;
+
+        LeftMotor.spin(direction, motorPower, percent);
+        RightMotor.spin(direction, motorPower, percent);
+
+        prevErr = error;
+
+        // Exit condition
+        if (fabs(error) < 5) {
+            break;
+        }
+
+        wait(20, msec);
+    }
+
+    LeftMotor.stop(brake);
+    RightMotor.stop(brake);
+}
+
 void preAutonomous(void) {
-    // actions to do when the program starts
-    Brain.Screen.clearScreen();
-    Brain.Screen.print("pre auton code");
-    wait(1, seconds);
+  // actions to do when the program starts
+  Brain.Screen.clearScreen();
+  Brain.Screen.print("pre auton code");
+
+  ClawMotor.setVelocity(40, percent);
+  ClawMotor.spinFor(forward, 25, degrees);
+  ClawMotor.setStopping(hold);
+
+  wait(1, seconds);
 }
 
 void autonomous(void) {
-    Brain.Screen.clearScreen();
-    Brain.Screen.print("autonomous code");
+  Brain.Screen.clearScreen();
+  Brain.Screen.print("autonomous code");
 
-    LeftMotor.setVelocity(100, percent);
-    RightMotor.setVelocity(100, percent);
+  drivePID(1230, forward);
 
-    while (LineTracker.reflectivity(percent) > 4) {
-        LeftMotor.spin(forward);
-        RightMotor.spin(forward);
-    }
+  LeftMotor.setVelocity(100, percent);
+  RightMotor.setVelocity(100, percent);
 
-    LeftMotor.stop();
-    RightMotor.stop();
+  LeftMotor.spinFor(reverse, 300, degrees, false);
+  RightMotor.spinFor(forward, 300, degrees, false);
+  waitUntil(!LeftMotor.isSpinning() && !RightMotor.isSpinning());
 
-    raiseArmPID(479.20, forward);
+  while (RangeFinderA.distance(inches) > 43) {
+      LeftMotor.spin(forward);
+      RightMotor.spin(forward);
+  }
+
+  LeftMotor.stop();
+  RightMotor.stop();
+
+  raiseArmPID(479.20, forward);
+
+  LeftMotor.stop();
+  RightMotor.stop();
 }
 
 void userControl(void) {
     Brain.Screen.clearScreen();
     // place driver control in this while loop
+      Controller1.ButtonL1.pressed(controller_L1_Pressed);
+      Controller1.ButtonL2.pressed(controller_L2_Pressed);
+      Controller1.ButtonR1.pressed(controller_R1_Pressed);
+      Controller1.ButtonR2.pressed(controller_R2_Pressed);
+      Controller1.ButtonA.pressed(controller_ButtonA_Pressed);
+      Controller1.ButtonB.pressed(controller_ButtonB_Pressed);
     while (true) {
-        Controller1.ButtonL1.pressed(controller_L1_Pressed);
-        Controller1.ButtonL2.pressed(controller_L2_Pressed);
-        Controller1.ButtonR1.pressed(controller_R1_Pressed);
-        Controller1.ButtonR2.pressed(controller_R2_Pressed);
-        Controller1.ButtonA.pressed(controller_ButtonA_Pressed);
-        Controller1.ButtonB.pressed(controller_ButtonB_Pressed);
 
         if (arcade) {
             LeftMotor.setVelocity(
                 (Controller1.Axis2.position() + Controller1.Axis4.position()),
-                percent);
+                  percent);
             RightMotor.setVelocity(
                 (Controller1.Axis2.position() - Controller1.Axis4.position()),
-                percent);
+                  percent);
         } else {
             LeftMotor.setVelocity(Controller1.Axis3.position(), percent);
             RightMotor.setVelocity(Controller1.Axis2.position(), percent);
         }
+
+        LeftMotor.spin(forward);
+        RightMotor.spin(forward);
 
         wait(20, msec);
     }
@@ -219,8 +294,8 @@ int main() {
     // Configure Arm and Claw motor hold settings and velocity
     ArmMotor.setStopping(hold);
     ClawMotor.setStopping(hold);
-    ArmMotor.setVelocity(68, percent);
-    ClawMotor.setVelocity(70, percent);
+    ArmMotor.setVelocity(100, percent);
+    ClawMotor.setVelocity(100, percent);
 
     while (true) {
         Brain.Screen.clearScreen();
@@ -228,6 +303,8 @@ int main() {
         Brain.Screen.print("Pot Angle %.2f", Potentiometer.angle(degrees));
         Brain.Screen.newLine();
         Brain.Screen.print("Line Tracker: %d", LineTracker.reflectivity(percent));
-        wait(5, msec);
+        Brain.Screen.newLine();
+        Brain.Screen.print("Sonar: %.2f", RangeFinderA.distance(inches));
+        wait(100, msec);
     }
 }
